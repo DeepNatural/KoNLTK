@@ -25,11 +25,15 @@ import pytz
 tz = pytz.timezone('Asia/Seoul')
 generator = DateTimeExprGenerator()
 
-dt_base = tz.localize(datetime(2018, 6, 6, 15))             # 2018-06-06T15:00:00+09:00
+dt_base = tz.localize(datetime(2018, 6, 6, 15))         # 2018-06-06T15:00:00+09:00
 
-dt = tz.localize(datetime(2018, 6, 6, 8))                   # 2018-06-06T08:00:00+09:00
-expr = dt_expr_generator.generate(dt, dt_base=dt_base)      # If dt_base=None, current time is used.
-print(expr)                                                 # "오늘 오전 8시"
+dt = tz.localize(datetime(2018, 6, 6, 8))               # 2018-06-06T08:00:00+09:00
+expr = dt_expr_generator.generate(dt, dt_base=dt_base)  # If dt_base=None, current time is used.
+print(expr)                                             # "오늘 오전 8시"
+
+dt_end = tz.localize(datetime(2018, 6, 6, 10))                  # 2018-06-06T08:00:00+09:00
+expr = dt_expr_generator.generate(dt, dt_end, dt_base=dt_base)  # If dt_base=None, current time is used.
+print(expr)                                                     # "오늘 오전 8시부터 10시"
 ```
 
 More examples with the reference datetime(2018, 6, 6, 15):
@@ -51,7 +55,8 @@ datetime(2019, 2, 4, 16)            # "2019년 2월 4일 월요일, 오후 4시"
 """
 
 
-SITUATION_SCHEDULING_DIALOG = 0
+SCHEDULING_DIALOG = 0
+SUMMING_UP = 1
 
 class DateTimeExprGenerator(object):
     """
@@ -61,7 +66,7 @@ class DateTimeExprGenerator(object):
     def __init__(self, timezone="Asia/Seoul"):
         self.tz = pytz.timezone(timezone)
 
-    def generate(self, dt, dt_end=None, dt_base=None, situation=SITUATION_SCHEDULING_DIALOG):
+    def generate(self, dt, dt_end=None, dt_base=None, situation=SCHEDULING_DIALOG):
         """
         Generate a date time expression in Korean.
 
@@ -85,27 +90,36 @@ class DateTimeExprGenerator(object):
 
         if dt.tzinfo is None:
             raise DateTimeOffsetNaiveException("`dt` has no tzinfo. All datetime objects should be offset-aware.")
+        dt = dt.astimezone(self.tz)
 
         if dt_end:
             if dt_end.tzinfo is None:
                 raise DateTimeOffsetNaiveException("`dt_end` has no tzinfo. All datetime objects should be offset-aware.")
             dt_end = dt_end.astimezone(self.tz)
 
-        if situation == SITUATION_SCHEDULING_DIALOG:
-            dt_expr = "{} {}".format(self.__strdate_for_scheduling_dialog(dt=dt, dt_base=dt_base),
-                    self.__strtime_for_scheduling_dialog(dt=dt)).strip()
+        if situation == SCHEDULING_DIALOG:
+            dt_expr = "{} {}".format(self.__str_date_for_scheduling_dialog(dt=dt, dt_base=dt_base),
+                    self.__str_time_for_scheduling_dialog(dt=dt)).strip()
             if dt_end:
-                dt_end_expr = "{} {}".format(self.__strdate_for_scheduling_dialog(dt=dt_end, dt_base=dt_base, dt_ref=dt),
-                        self.__strtime_for_scheduling_dialog(dt=dt_end, dt_ref=dt)).strip()
+                dt_end_expr = "{} {}".format(self.__str_date_for_scheduling_dialog(dt=dt_end, dt_base=dt_base, dt_ref=dt),
+                        self.__str_time_for_scheduling_dialog(dt=dt_end, dt_ref=dt)).strip()
                 return "{}부터 {}".format(dt_expr, dt_end_expr)
+            else:
+                return dt_expr
+        elif situation == SUMMING_UP:
+            dt_expr = self.__str_datetime_for_summing_up(dt=dt, dt_base=dt_base)
+            if dt_end:
+                dt_end_expr = self.__str_datetime_for_summing_up(dt=dt_end, dt_base=dt_base, dt_ref=dt)
+                return "{} ~ {}".format(dt_expr, dt_end_expr)
             else:
                 return dt_expr
         else:
             raise UndefinedSituationException("Invalid situation provided.")
 
-    def __strdate_for_scheduling_dialog(self, dt, dt_base, dt_ref=None):
+
+    def __str_date_for_scheduling_dialog(self, dt, dt_base, dt_ref=None):
         """
-        Generate date expression for scheduling dialog.
+        Generate date expression for a schedule dialog.
         """
         dt_comp = dt_base if dt_ref is None else dt_ref
         if dt.year != dt_comp.year or dt.month < dt_comp.month:
@@ -122,9 +136,9 @@ class DateTimeExprGenerator(object):
             elif day_diff == 1:
                 expr.append("내일")
             elif day_diff == -1:
-                expr.append("어제({}일)".format(dt.day))
+                expr.append("어제")
             elif day_diff == 2:
-                expr.append("모레({}일)".format(dt.day))
+                expr.append("모레")
             else:
                 if dt_ref is None or (dt_ref.isocalendar()[1] != dt.isocalendar()[1]):
                     week_diff = dt.isocalendar()[1] - dt_base.isocalendar()[1]
@@ -138,52 +152,16 @@ class DateTimeExprGenerator(object):
                             expr.append("다음주")
                         elif week_diff == -1:
                             expr.append("지난주")
-                        expr.append("{}({}일)".format(self.weekday(dt), dt.day))
+                        expr.append(self.weekday(dt))
                 else:
                     expr.append("{}일 {}".format(dt.day, self.weekday(dt)))
 
         return " ".join(expr)
 
-    def __strenddate_for_scheduling_dialog(self, dt_start, dt_end, dt_base):
-        if dt_start.year != dt_end.year:
-            return "{}년 {}월 {}일 {},".format(dt_end.year, dt_end.month, dt_end.day, self.weekday(dt_end))
-        if dt_start.month != dt_end.month:
-            return "{}월 {}일 {},".format(dt_end.month, dt_end.day, self.weekday(dt_end))
 
-        expr = []
-
-        if dt_start.day != dt_end.day:
-            day_diff = dt_end.day - dt_base.day
-            if day_diff == 0:
-                expr.append("오늘")
-            elif day_diff == 1:
-                expr.append("내일")
-            elif day_diff == -1:
-                expr.append("어제({}일)".format(dt_end.day))
-            elif day_diff == 2:
-                expr.append("모레({}일)".format(dt_end.day))
-            else:
-                dt_start_week = dt_start.isocalendar()[1]
-                dt_end_week = dt_end.isocalendar()[1]
-                dt_base_week = dt_base.isocalendar()[1]
-
-                if dt_start_week != dt_end_week:
-                    week_diff = dt_end_week - dt_base_week
-                    if week_diff not in (-1, 0, 1):
-                        expr.append("{}일 {}".format(dt_end.day, self.weekday(dt_end)))
-                    else:
-                        if week_diff == 0:
-                            expr.append("이번주")
-                        elif week_diff == 1:
-                            expr.append("다음주")
-                        elif week_diff == -1:
-                            expr.append("지난주")
-                        expr.append("{}({}일)".format(self.weekday(dt), dt.day))
-
-
-    def __strtime_for_scheduling_dialog(self, dt, dt_ref=None):
+    def __str_time_for_scheduling_dialog(self, dt, dt_ref=None):
         """
-        Generate time expression for scheduling dialog.
+        Generate time expression for a schedule dialog.
         """
         expr = []
 
@@ -205,6 +183,25 @@ class DateTimeExprGenerator(object):
             expr.append("{}분".format(dt.minute))
         if dt.second > 0:
             expr.append("{}초".format(dt.second))
+
+        return " ".join(expr)
+
+
+    def __str_datetime_for_summing_up(self, dt, dt_base, dt_ref=None):
+        """
+        Generate date expression for a schedule summary.
+        """
+        expr = []
+        dt_comp = dt_base if dt_ref is None else dt_ref
+
+        if dt.year != dt_comp.year or dt.month < dt_comp.month:
+            expr.append("{}/{}/{}({})".format(dt.year, dt.month, dt.day, self.weekday(dt, simple=True)))
+        elif dt_ref is None or dt.month != dt_ref.month:
+            expr.append("{}/{}({})".format(dt.month, dt.day, self.weekday(dt, simple=True)))
+        elif dt_ref is None or dt.day != dt_comp.day:
+            expr.append("{}({})".format(dt.day, self.weekday(dt, simple=True)))
+
+        expr.append("{:02}:{:02}".format(dt.hour, dt.minute))
 
         return " ".join(expr)
 
