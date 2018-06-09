@@ -152,17 +152,17 @@ def test_datetime_expr_generator_should_make_correct_summary():
     dt_start = tz.localize(datetime(2018, 6, 4, 10))
     dt_end = tz.localize(datetime(2018, 6, 4, 14))
     expr = dt_expr_generator.generate(dt_start, dt_end, dt_base=dt_base, situation=SUMMING_UP)
-    assert expr == "6/4(월) 10:00 ~ 14:00"
+    assert expr == "6/4(월) 10:00 ~ 14:00 (4시간)"
 
     dt_start = tz.localize(datetime(2018, 6, 5, 18))
     dt_end = tz.localize(datetime(2018, 6, 5, 21))
     expr = dt_expr_generator.generate(dt_start, dt_end, dt_base=dt_base, situation=SUMMING_UP)
-    assert expr == "6/5(화) 18:00 ~ 21:00"
+    assert expr == "6/5(화) 18:00 ~ 21:00 (3시간)"
 
     dt_start = tz.localize(datetime(2018, 6, 6, 8))
     dt_end = tz.localize(datetime(2018, 6, 6, 11))
     expr = dt_expr_generator.generate(dt_start, dt_end, dt_base=dt_base, situation=SUMMING_UP)
-    assert expr == "6/6(수) 08:00 ~ 11:00"
+    assert expr == "6/6(수) 08:00 ~ 11:00 (3시간)"
 
     dt_start = tz.localize(datetime(2018, 6, 7, 22, 10))
     dt_end = tz.localize(datetime(2018, 6, 8, 22, 10))
@@ -192,7 +192,7 @@ def test_datetime_expr_generator_should_make_correct_summary():
     dt_start = tz.localize(datetime(2018, 5, 30, 8, 21))
     dt_end = tz.localize(datetime(2018, 5, 31, 8, 20))
     expr = dt_expr_generator.generate(dt_start, dt_end, dt_base=dt_base, situation=SUMMING_UP)
-    assert expr == "2018/5/30(수) 08:21 ~ 31(목) 08:20"
+    assert expr == "2018/5/30(수) 08:21 ~ 31(목) 08:20 (23시간 59분)"
 
     dt_start = tz.localize(datetime(2018, 4, 1, 11))
     dt_end = tz.localize(datetime(2019, 3, 31, 11))

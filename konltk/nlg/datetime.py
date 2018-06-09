@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
+from datetime import timedelta
 
 from konltk.nlg.exceptions import DateTimeOffsetNaiveException, UndefinedSituationException
 
@@ -198,10 +199,22 @@ class DateTimeExprGenerator(object):
             expr.append("{}/{}/{}({})".format(dt.year, dt.month, dt.day, self.weekday(dt, simple=True)))
         elif dt_ref is None or dt.month != dt_ref.month:
             expr.append("{}/{}({})".format(dt.month, dt.day, self.weekday(dt, simple=True)))
-        elif dt_ref is None or dt.day != dt_comp.day:
+        elif dt_ref is None or dt.day != dt_ref.day:
             expr.append("{}({})".format(dt.day, self.weekday(dt, simple=True)))
 
         expr.append("{:02}:{:02}".format(dt.hour, dt.minute))
+
+        if dt_ref is not None:
+            delta = (dt - dt_ref).total_seconds()
+            if delta >= 59 and delta < 60*60*24:
+                delta_expr = []
+                hours, remainder = divmod(delta, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                if hours > 0:
+                    delta_expr.append("{:.0f}시간".format(hours))
+                if minutes > 0:
+                    delta_expr.append("{:.0f}분".format(minutes))
+                expr.append("({})".format(" ".join(delta_expr)))
 
         return " ".join(expr)
 
