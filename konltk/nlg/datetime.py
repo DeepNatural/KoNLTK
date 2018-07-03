@@ -117,6 +117,64 @@ class DateTimeExprGenerator(object):
         else:
             raise UndefinedSituationException("Invalid situation provided.")
 
+    def generate_list(self, dt_range_list, dt_base=None, aggregate=True):
+        """
+        Generate a list of date time expressions in Korean.
+
+        :param dt_range_list: A list of (start, end) datetime tuples
+        :type dt_range_list: list((datetime.datetime, datetime.datetime))
+
+        :param dt_base: A reference datetime. If none, `datetime.now()` is used.
+        :type dt: datetime.datetime
+        """
+        assert isinstance(dt_range_list, list), "`dt_range_list` should be a list"
+        
+        if dt_base:
+            if dt_base.tzinfo is None:
+                raise DateTimeOffsetNaiveException("`dt_base` has no tzinfo. All datetime objects should be offset-aware.")
+            dt_base = dt_base.astimezone(self.tz)
+        else:
+            dt_base = datetime.now(tz=pytz.UTC).astimezone(self.tz)
+
+        dt_expr_list = []
+        date_prev = None
+
+        for dt, dt_end, note in dt_range_list:
+            if dt.tzinfo is None:
+                raise DateTimeOffsetNaiveException("`dt` has no tzinfo. All datetime objects should be offset-aware.")
+            dt = dt.astimezone(self.tz)
+
+            if dt_end:
+                if dt_end.tzinfo is None:
+                    raise DateTimeOffsetNaiveException("`dt_end` has no tzinfo. All datetime objects should be offset-aware.")
+                dt_end = dt_end.astimezone(self.tz)
+
+            date_cur = dt.date()
+            if date_prev != date_cur:
+                dt_expr = self.__str_date_for_summing_up(dt=dt, dt_base=dt_base, add_relative_expr=aggregate)
+                if aggregate:
+                    dt_expr = dt_expr + '\n'
+                else:
+                    dt_expr = dt_expr + ' '
+
+                if date_prev:
+                    dt_expr = '\n' + dt_expr
+            else:
+                dt_expr = ''
+
+            dt_expr += self.__str_time_for_summing_up(dt=dt, dt_base=dt_base)
+
+            if dt_end:
+                dt_end_expr = self.__str_time_for_summing_up(dt=dt_end, dt_base=dt_base, dt_ref=dt, note=note)
+                dt_expr_list.append("{} ~ {}".format(dt_expr, dt_end_expr))
+            else:
+                dt_expr_list.append(dt_expr)
+
+            if aggregate:
+                date_prev = date_cur
+
+        return dt_expr_list
+
 
     def __str_date_for_scheduling_dialog(self, dt, dt_base, dt_ref=None):
         """
@@ -205,6 +263,58 @@ class DateTimeExprGenerator(object):
         expr.append("{:02}:{:02}".format(dt.hour, dt.minute))
 
         if dt_ref is not None:
+            delta = (dt - dt_ref).total_seconds()
+            if delta >= 59 and delta < 60*60*24:
+                delta_expr = []
+                hours, remainder = divmod(delta, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                if hours > 0:
+                    delta_expr.append("{:.0f}시간".format(hours))
+                if minutes > 0:
+                    delta_expr.append("{:.0f}분".format(minutes))
+                expr.append("({})".format(" ".join(delta_expr)))
+
+        return " ".join(expr)
+
+    def __str_date_for_summing_up(self, dt, dt_base, dt_ref=None, add_relative_expr=True):
+        """
+        Generate date expression for a schedule summary.
+        """
+        expr = []
+        dt_comp = dt_base if dt_ref is None else dt_ref
+
+        if dt.year != dt_comp.year or dt.month < dt_comp.month:
+            expr.append("{}/{}/{}({})".format(dt.year, dt.month, dt.day, self.weekday(dt, simple=True)))
+        elif dt_ref is None or dt.month != dt_ref.month:
+            expr.append("{}/{}({})".format(dt.month, dt.day, self.weekday(dt, simple=True)))
+        elif dt_ref is None or dt.day != dt_ref.day:
+            expr.append("{}({})".format(dt.day, self.weekday(dt, simple=True)))
+
+        if add_relative_expr:
+            day_diff = dt.day - dt_base.day
+            if day_diff == 0:
+                expr.append("오늘")
+            elif day_diff == 1:
+                expr.append("내일")
+            elif day_diff == -1:
+                expr.append("어제")
+            elif day_diff == 2:
+                expr.append("모레")
+
+        return " ".join(expr)
+
+    def __str_time_for_summing_up(self, dt, dt_base, dt_ref=None, note=None):
+        """
+        Generate time expression for a schedule summary.
+        """
+        expr = []
+        dt_comp = dt_base if dt_ref is None else dt_ref
+
+        expr.append("{:02}:{:02}".format(dt.hour, dt.minute))
+
+        if note:
+            expr.append("{}".format(note))
+        elif dt_ref is not None:
             delta = (dt - dt_ref).total_seconds()
             if delta >= 59 and delta < 60*60*24:
                 delta_expr = []
